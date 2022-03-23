@@ -1,8 +1,16 @@
 name: /home/manan.sharma/projects/recovery/.env
 channels:
+  - pytorch
   - conda-forge
   - defaults
 dependencies:
   - python=3.9
-  - tensorflow
+  - pytorch
+  - torchvision
+  - torchaudio
+  - cudatoolkit=10.2
+  - pip
+  - ca-certificates
+  - certifi
+  - openssl
 prefix: /home/manan.sharma/projects/recovery/.env
