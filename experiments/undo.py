@@ -11,8 +11,7 @@ from torch import optim
 
 class UndoExperiment(Experiment):
     @staticmethod
-    def parser():
-        parser = argparse.ArgumentParser("Undo Experiment")
+    def add_parser(parser:argparse.ArgumentParser):
         parser.add_argument("--root",type=str,help="root location for the experiment",required=True)
         parser.add_argument("--dataset",type=str,help="path of the dataset",required=True)
         subparser = parser.add_subparsers(dest="mode")
@@ -33,6 +32,7 @@ class UndoExperiment(Experiment):
             self.epochs = args.epochs
             self.batch_size = args.batch_size
             self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+            torch.manual_seed(0)
         
 
     def run(self):
@@ -60,13 +60,16 @@ class UndoExperiment(Experiment):
             altered=altered.float().to(self.device)
             undo=undo.float().to(self.device)
 
-            orig_output = self.model(original)
-            orig_loss = self.criterion(orig_output,torch.ones([self.batch_size]).type(torch.LongTensor).to(self.device))
+            pos_output = self.model(original)
+            pos_loss = self.criterion(pos_output,torch.ones([self.batch_size]).type(torch.LongTensor).to(self.device))
             
-            alter_output = self.model(altered)
-            alter_loss = self.criterion(alter_output,torch.zeros([self.batch_size]).type(torch.LongTensor).to(self.device))
+            neg_output = self.model(altered)
+            neg_loss = self.criterion(neg_output,torch.zeros([self.batch_size]).type(torch.LongTensor).to(self.device))
 
-            loss = orig_loss+alter_loss
+            undo_output = self.model(undo)
+            undo_loss = self.criterion(undo_output,torch.ones([self.batch_size]).type(torch.LongTensor).to(self.device))
+
+            loss = pos_loss+2*neg_loss+undo_loss
             loss.backward()
             self.optimizer.step()
             avg_loss+=loss.item()
@@ -76,21 +79,33 @@ class UndoExperiment(Experiment):
     def validate(self, dataloader:DataLoader):
         steps = 0
         avg_loss = 0
+        c_matrix = torch.tensor([[0,0],[0,0]])
         with torch.no_grad():
             for original, altered, undo in dataloader:
                 original=original.float().to(self.device)
                 altered=altered.float().to(self.device)
                 undo=undo.float().to(self.device)
 
-                orig_output = self.model(original)
-                orig_loss = self.criterion(orig_output,torch.ones([self.batch_size]).type(torch.LongTensor).to(self.device))
-                
-                alter_output = self.model(altered)
-                alter_loss = self.criterion(alter_output,torch.zeros([self.batch_size]).type(torch.LongTensor).to(self.device))
 
-                loss = orig_loss+alter_loss
+                pos_output = self.model(undo)
+                tp = (pos_output[:,1]>pos_output[:,0]).sum().item()
+                fn = (pos_output[:,1]<=pos_output[:,0]).sum().item()
+                
+                pos_loss = self.criterion(pos_output,torch.ones([self.batch_size]).type(torch.LongTensor).to(self.device))
+                
+                neg_output = self.model(altered)
+                tn = (neg_output[:,1]<=neg_output[:,0]).sum().item()
+                fp = (neg_output[:,1]>neg_output[:,0]).sum().item()
+
+
+                neg_loss = self.criterion(neg_output,torch.zeros([self.batch_size]).type(torch.LongTensor).to(self.device))
+
+                c_matrix+=torch.tensor([[tn,fp],[fn,tp]])
+                
+                loss = pos_loss+neg_loss
                 avg_loss+=loss.item()
                 steps+=self.batch_size
+        print(c_matrix)
         return avg_loss/steps
             
 

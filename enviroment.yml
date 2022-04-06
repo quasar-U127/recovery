@@ -8,9 +8,13 @@ dependencies:
   - pytorch
   - torchvision
   - torchaudio
+  - tensorboard
   - cudatoolkit=10.2
-  - pip
+  - scikit-learn
+  - matplotlib
   - ca-certificates
   - certifi
   - openssl
+  - autopep8
+  - tqdm
 prefix: /home/manan.sharma/projects/recovery/.env
