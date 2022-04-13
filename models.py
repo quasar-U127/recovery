@@ -1,6 +1,8 @@
+from turtle import forward
 from typing import List
 from torch import Tensor, nn
 import torch.nn.functional as F
+from torchvision.models.mobilenetv3 import mobilenet_v3_small
 
 
 class Simple(nn.Module):
@@ -50,4 +52,19 @@ class MLPOneHot(nn.Module):
         x = self.model(x)
         outputs = x.shape[-1]
         x = x.view(-1, self.num_classes, outputs//self.num_classes)
+        return x
+
+
+class ImageAlteration(nn.Module):
+    def __init__(self, tail_sizes: List[int], num_classes: int) -> None:
+        super().__init__()
+        # self.mobilenet = mobilenet_v3_small()
+        self.model = nn.Sequential()
+        self.num_classes = num_classes
+        self.model.append(mobilenet_v3_small())
+        self.model.append(MLPOneHot(
+            sizes=[1000]+tail_sizes, num_classes=num_classes))
+        
+    def forward(self, x: Tensor) -> Tensor:
+        x = self.model(x)
         return x

@@ -1,5 +1,6 @@
 import argparse
 from datetime import datetime
+from math import inf
 import os
 
 import torch
@@ -30,21 +31,27 @@ class AlterationOneHotExperiment(Experiment):
         train_parser = subparser.add_parser("train")
         train_parser.add_argument("--epochs",type=int,default=20)
         train_parser.add_argument("--batch_size",type=int,default=32)
+        train_parser.add_argument("--weight",type=int,nargs=3,default=[1,1,1])
+        train_parser.add_argument("--lr",type=float,default=0.001)
 
     def __init__(self, args:argparse.Namespace) -> None:
-        super().__init__(args.root)
+        super().__init__(args.root)  
         self.dataset = data.AlterationData(args.dataset,args.subset)
         print(f"Size of dataset is {len(self.dataset)}")
         self.mode = args.mode
         self.model = MLPOneHot([2622,1311,655,13],3)
         if self.mode=="train":
-            self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-            self.criterion = nn.CrossEntropyLoss()
-            self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
-            # self.optimizer = optim.SGD(self.model.parameters(), lr=0.001, momentum=0.9)
             self.epochs = args.epochs
             self.batch_size = args.batch_size
+            self.weight = torch.tensor(args.weight).float()
+            self.lr = args.lr
+
+            self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+            self.criterion = nn.CrossEntropyLoss(weight=self.weight)
+            self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
+            # self.optimizer = optim.SGD(self.model.parameters(), lr=0.001, momentum=0.9)
             torch.manual_seed(0)
+            
             # os.makedirs(self.root)
         
 
@@ -54,18 +61,22 @@ class AlterationOneHotExperiment(Experiment):
 
     def train(self):
         print(self.device)
-        self.model.to(device=self.device)
-        self.criterion = self.criterion.to(device=self.device)
-        length = len(self.dataset)
-        train_len = int(length*0.8)
-        val_len = length-train_len
-        train_set, val_set = random_split(self.dataset,[train_len,val_len])
-        train_loader = DataLoader(train_set, batch_size=self.batch_size, shuffle=True,drop_last=False)
-        val_loader = DataLoader(val_set, batch_size=self.batch_size, shuffle=False,drop_last=False)
         with SummaryWriter(os.path.join(self.root,"logs")) as logger:
+            self.model.to(device=self.device)
+            self.criterion = self.criterion.to(device=self.device)
+            length = len(self.dataset)
+            train_len = int(length*0.8)
+            val_len = length-train_len
+            train_set, val_set = random_split(self.dataset,[train_len,val_len])
+            train_loader = DataLoader(train_set, batch_size=self.batch_size, shuffle=True,drop_last=False)
+            val_loader = DataLoader(val_set, batch_size=self.batch_size, shuffle=False,drop_last=False)
+            temp_iter = iter(train_loader)
+            temp_data = temp_iter.next()
+            logger.add_graph(self.model,temp_data[1].float().to(self.device))
             pbar = tqdm(range(self.epochs))
+            min_val_loss = inf
             for epoch in pbar:
-                l = self.run_epoch(dataloader=train_loader)
+                l = self.train_epoch(dataloader=train_loader)
                 logger.add_scalar("loss/train",l,epoch)
                 
                 v, recon_matrix, alter_matrix = self.validate(dataloader=val_loader)
@@ -81,11 +92,23 @@ class AlterationOneHotExperiment(Experiment):
                     fig = utils.mat_to_figure(alter_matrix[i,:,:],["Deleted","No change","Added"],["Deleted","No change","Added"])
                     logger.add_figure("confusion_mtrix/alteration/{}".format(att), fig, epoch)
                     plt.close()
+                    min_val_loss = min(min_val_loss,v)
                 # v = 0
                 tqdm.write(f"Epoch: {epoch+1:3d} Train: {l:.16f} Val: {v:.16f}")
+            logger.add_hparams(
+                {
+                    "epochs": self.epochs,
+                    "lr": self.lr,
+                    "weight": str(self.weight),
+                    "batch_size": self.batch_size
+                },
+                metric_dict={
+                    "Min Validation Loss": min_val_loss
+                }
+            )
                 # print(f"Epoch Train:{l} Val:{v}")
 
-    def run_epoch(self,dataloader:DataLoader):
+    def train_epoch(self,dataloader:DataLoader):
         steps = 0
         avg_loss = 0
         pbar = tqdm(dataloader,leave=False)

@@ -1,4 +1,4 @@
-name: /home/manan.sharma/projects/recovery/.env
+name: ~/projects/recovery/.env
 channels:
   - pytorch
   - conda-forge
@@ -17,4 +17,5 @@ dependencies:
   - openssl
   - autopep8
   - tqdm
+  - imageio
 prefix: /home/manan.sharma/projects/recovery/.env

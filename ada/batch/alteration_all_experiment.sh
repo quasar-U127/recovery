@@ -2,6 +2,7 @@
 #SBATCH -A manan.sharma
 #SBATCH --qos=normal
 #SBATCH -n 10
+#SBATCH --gres=gpu:1
 #SBATCH --time=12:00:00
 #SBATCH --mail-type=END
 

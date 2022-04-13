@@ -3,13 +3,15 @@ from typing import Dict
 from experiments.alteration import AlterationExperiment
 from experiments.alteration_onehot import AlterationOneHotExperiment
 from experiments.experiment import Experiment
+from experiments.mobilenet import MobileNetAlteration
 from experiments.undo import UndoExperiment
 
 def main():
     experiments:dict[str,Experiment] = {
         "undo":UndoExperiment,
         "alteration": AlterationExperiment,
-        "alteration_one_hot": AlterationOneHotExperiment
+        "alteration_one_hot": AlterationOneHotExperiment,
+        "mobilenet_alteration": MobileNetAlteration
     }
 
     parser = argparse.ArgumentParser("Recovery Experiments")

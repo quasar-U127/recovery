@@ -3,6 +3,7 @@ import os
 from torch.utils.data import Dataset
 import numpy as np
 from typing import Any, Tuple, List
+import imageio
 
 
 class UndoData(Dataset):
@@ -33,7 +34,7 @@ class AlterationData(Dataset):
         self.root = path
         self.samples: List[Tuple[str, str]] = []
 
-        if subsets is None or len(subsets)==0:
+        if subsets is None or len(subsets) == 0:
             self.samples = [self.extract_sample(f) for f in glob(
                 os.path.join(escape(self.root), "*", "*.npz"))]
         else:
@@ -50,5 +51,14 @@ class AlterationData(Dataset):
 
     def __getitem__(self, index: Any) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         subset, item = self.samples[index]
-        sample = np.load(os.path.join(self.root, subset, f"{item}.npz"))
-        return sample["original"], sample["recontruction"], sample["altered"], sample["change"]
+        _sample = np.load(os.path.join(self.root, subset, f"{item}.npz"))
+        sample = {}
+        for key in _sample.keys():
+            sample[key] = _sample[key]
+        sample["im_recon"] = np.array(imageio.imread(os.path.join(
+            self.root, subset, f"{item}_reconstruction.png"))).transpose((2, 0, 1))
+        sample["im_alter"] = np.array(imageio.imread(
+            os.path.join(self.root, subset, f"{item}_altered.png"))).transpose((2, 0, 1))
+        sample["im_orig"] = np.array(imageio.imread(os.path.join(
+            self.root, subset, f"{item}_original.png"))).transpose((2, 0, 1))
+        return sample
